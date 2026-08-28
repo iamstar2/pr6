@@ -1,0 +1,54 @@
+#pragma once
+// Copy this file to config.h and fill in real values.
+// config.h is gitignored on purpose — never commit real Wi-Fi / server credentials.
+
+// ---------- Wi-Fi ----------
+#define WIFI_SSID              "your-wifi-ssid"
+#define WIFI_PASSWORD          "your-wifi-password"
+
+// ---------- RPi5 detection server ----------
+// Base URL of the FastAPI server from rpi5/ (no trailing slash).
+#define SERVER_BASE_URL        "http://192.168.0.100:8000"
+#define SERVER_DETECT_PATH     "/api/v1/detect"
+
+// Unique identifier for this camera node — sent as `device_id` on every request.
+#define DEVICE_ID              "esp32-01"
+
+// ---------- Timing ----------
+// How often to run person-detection inference on the low-res preview frame.
+#define CAPTURE_INTERVAL_MS    500
+// Minimum confidence (0..1) for a FOMO bounding box to count as "person detected".
+// NOTE: the model itself was exported with its own internal floor
+// (EI_CLASSIFIER_OBJECT_DETECTION_THRESHOLD = 0.5, baked into
+// lib/Person_detection_FOMO_inferencing/src/model-parameters/model_metadata.h) —
+// the SDK never returns boxes below that, so setting this lower than 0.5 does
+// nothing. Watch the "[Debug] box: ..." serial log while pointing the camera at
+// a person to see real confidence values before tuning this.
+#define DETECTION_THRESHOLD    0.5f
+// After a violation-capture upload, wait at least this long before capturing again
+// (debounces repeated uploads for the same person standing in frame).
+#define CAPTURE_COOLDOWN_MS    5000
+
+// ---------- HTTP retry / backoff ----------
+#define HTTP_MAX_RETRIES       3
+#define HTTP_BACKOFF_BASE_MS   500   // doubles each retry: 500, 1000, 2000...
+#define HTTP_TIMEOUT_MS        8000
+
+// ---------- Camera ----------
+// Single fixed capture resolution, used for BOTH inference (downscaled to the
+// model's 64x64 input) and the uploaded violation photo — no on-the-fly
+// resolution switching (that was tried and proved unreliable — see main.cpp).
+// QVGA (320x240) matches what this FOMO model's confidence values were tuned
+// against — raising it (e.g. to FRAMESIZE_VGA) for higher-res evidence photos
+// measurably increased false "person" detections in testing (more aggressive
+// downscale to the model's 64x64 input). Re-test detection accuracy carefully
+// if you change this.
+#define CAPTURE_FRAMESIZE      FRAMESIZE_QVGA
+#define CAPTURE_COLS           320
+#define CAPTURE_ROWS           240
+#define JPEG_QUALITY           12    // 0-63, lower = higher quality/larger file
+
+// ---------- Status LED ----------
+// XIAO ESP32S3 Sense on-board user LED, active LOW. Set to -1 to disable.
+#define STATUS_LED_PIN         21
+#define STATUS_LED_ACTIVE_LOW  true

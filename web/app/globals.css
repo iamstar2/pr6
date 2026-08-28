@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens sourced from D:\Downloads\Iot\DESIGN.md ("Obsidian Glass").
+   Dark is the primary/default theme, defined on :root; the light set
+   overrides via [data-theme="light"]. An explicit [data-theme="dark"] block
+   is also provided so the toggle always wins regardless of system setting. */
+:root {
+  --color-surface: #131315;
+  --color-surface-dim: #131315;
+  --color-surface-bright: #39393b;
+  --color-surface-container-lowest: #0e0e10;
+  --color-surface-container-low: #1b1b1d;
+  --color-surface-container: #1f1f21;
+  --color-surface-container-high: #2a2a2c;
+  --color-surface-container-highest: #353437;
+  --color-on-surface: #e4e2e4;
+  --color-on-surface-variant: #c1c6d7;
+  --color-outline: #8b90a0;
+  --color-outline-variant: #414755;
+  --color-primary: #adc6ff;
+  --color-on-primary: #002e69;
+  --color-primary-container: #4b8eff;
+  --color-on-primary-container: #00285c;
+  --color-secondary: #c6c6c7;
+  --color-on-secondary: #2f3131;
+  --color-tertiary: #ffb595;
+  --color-on-tertiary: #571e00;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+  --color-background: #131315;
+  --color-on-background: #e4e2e4;
+  --color-glass-border: rgba(255, 255, 255, 0.15);
+  --color-label-secondary: #86868b;
+  --color-success: #7dd8a4;
+  --color-on-success: #00391c;
+  --color-warning: #ffcf6b;
+  --color-on-warning: #402d00;
+}
+
+:root[data-theme='dark'] {
+  --color-surface: #131315;
+  --color-surface-dim: #131315;
+  --color-surface-bright: #39393b;
+  --color-surface-container-lowest: #0e0e10;
+  --color-surface-container-low: #1b1b1d;
+  --color-surface-container: #1f1f21;
+  --color-surface-container-high: #2a2a2c;
+  --color-surface-container-highest: #353437;
+  --color-on-surface: #e4e2e4;
+  --color-on-surface-variant: #c1c6d7;
+  --color-outline: #8b90a0;
+  --color-outline-variant: #414755;
+  --color-primary: #adc6ff;
+  --color-on-primary: #002e69;
+  --color-primary-container: #4b8eff;
+  --color-on-primary-container: #00285c;
+  --color-secondary: #c6c6c7;
+  --color-on-secondary: #2f3131;
+  --color-tertiary: #ffb595;
+  --color-on-tertiary: #571e00;
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+  --color-background: #131315;
+  --color-on-background: #e4e2e4;
+  --color-glass-border: rgba(255, 255, 255, 0.15);
+  --color-label-secondary: #86868b;
+  --color-success: #7dd8a4;
+  --color-on-success: #00391c;
+  --color-warning: #ffcf6b;
+  --color-on-warning: #402d00;
+}
+
+:root[data-theme='light'] {
+  --color-surface: #fbfbfe;
+  --color-surface-dim: #dbd9dd;
+  --color-surface-bright: #fbfbfe;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f5f4f7;
+  --color-surface-container: #efedf1;
+  --color-surface-container-high: #e9e7eb;
+  --color-surface-container-highest: #e3e2e6;
+  --color-on-surface: #1c1b1e;
+  --color-on-surface-variant: #454750;
+  --color-outline: #767680;
+  --color-outline-variant: #c6c6d0;
+  --color-primary: #005bc1;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #d8e2ff;
+  --color-on-primary-container: #001a41;
+  --color-secondary: #565e71;
+  --color-on-secondary: #ffffff;
+  --color-tertiary: #7c2e00;
+  --color-on-tertiary: #ffffff;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #410002;
+  --color-background: #fbfbfe;
+  --color-on-background: #1c1b1e;
+  --color-glass-border: rgba(0, 0, 0, 0.1);
+  --color-label-secondary: #6e6e73;
+  --color-success: #146c43;
+  --color-on-success: #ffffff;
+  --color-warning: #8a5a00;
+  --color-on-warning: #ffffff;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-on-background);
+  /* --font-inter is set by next/font/google on <html> (layout.js) — self-hosted at
+     build time, so this actually renders as Inter instead of silently falling back
+     to the OS default font. */
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.glass-card {
+  background-color: var(--color-surface-container);
+  border: 1px solid var(--color-glass-border);
+  border-radius: 1.5rem;
+}
+
+.glass-header {
+  background-color: color-mix(in srgb, var(--color-surface) 70%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--color-glass-border);
+}
+
+.pill {
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-outline-variant);
+  border-radius: 9999px;
+}

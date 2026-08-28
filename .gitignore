@@ -1,0 +1,57 @@
+# =====================================================================
+# This repo is shared on GitHub for the ①ESP32 and ④web modules ONLY.
+# ②rpi5/ and ③cloud/ are a local reference implementation the teammate
+# owning those modules is replacing with their own — excluded below so
+# they never get committed. See INTEGRATION.md for the contract their
+# replacement needs to satisfy (what ESP32 sends it, what it must send web/).
+#
+# Local-only dev tooling (assumes the excluded rpi5/ is present, so it's
+# useless to a fresh clone that only has esp32/+web/) is excluded too —
+# see SETUP.md for what a teammate actually needs after cloning.
+# All patterns below are anchored to the repo root (leading "/") so they
+# never accidentally match a same-named path nested inside esp32/ or web/
+# (e.g. esp32/scripts/ must NOT be excluded by the root /scripts/ rule).
+# =====================================================================
+/rpi5/
+/cloud/
+/run.bat
+/test.bat
+/stop.bat
+/scripts/
+/HOW_TO_RUN.md
+/PORTING_CHECKLIST.md
+
+# Repo scope kept minimal: only esp32/, web/, and the two teammate-facing
+# setup docs (SETUP.md, INTEGRATION.md) go to GitHub. These are local-only.
+/README.md
+/DESIGN.md
+/claude_code_prompt.md
+/docs/
+
+# Edge Impulse SDK (~24MB, vendored from a zip export) — too big for the repo.
+# Teammates re-install it after cloning: see SETUP.md / esp32/scripts/install_ei_model.py.
+esp32/lib/
+# The downloaded EI export zip itself (dropped at repo root to run the install
+# script against) — also shouldn't be committed, same reason.
+/*.zip
+
+# Python (kept in case rpi5/cloud exclusion above is ever lifted)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node / Next.js
+node_modules/
+.next/
+web/.env
+
+# Per-user secrets (Wi-Fi, ...) — copy from the matching .example
+esp32/include/config.h
+
+# ESP32 / PlatformIO
+esp32/.pio/
+
+# Misc
+.DS_Store
+Thumbs.db

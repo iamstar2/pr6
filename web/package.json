@@ -1,0 +1,26 @@
+{
+  "name": "iot-safety-web-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Web monitoring dashboard for the IoT PPE safety-violation pipeline (frontend + Socket.IO relay backend).",
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development node server.js",
+    "build": "next build",
+    "start": "cross-env NODE_ENV=production node server.js",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "next": "14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.19",
+    "cross-env": "^7.0.3",
+    "postcss": "^8.4.39",
+    "tailwindcss": "^3.4.6"
+  }
+}
