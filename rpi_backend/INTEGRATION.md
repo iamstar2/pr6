@@ -59,6 +59,7 @@ Content-Type: image/jpeg
 {
   "status": "ok",
   "device_id": "esp32-s3-01",
+  "ppe_status": "VIOLATION",
   "violation": true,
   "violation_types": ["NO_HARDHAT"],
   "detections": [
@@ -74,7 +75,11 @@ Content-Type: image/jpeg
 }
 ```
 
-- `violation`: 미착용 detection이 하나라도 있으면 `true`
+- `ppe_status`: 판정 3단계 중 하나
+  - `"COMPLIANT"` (착용) — 사람이 감지됐고 안전모/안전조끼를 모두 착용
+  - `"VIOLATION"` (미착용) — 사람이 감지됐고 안전모/안전조끼 중 하나 이상 미착용 → **이 경우만 Supabase로 전달됨**
+  - `"NO_PERSON"` (이상없음) — 사람 자체가 감지되지 않음 (미착용 물체만 있어도 판정하지 않음)
+- `violation`: `ppe_status == "VIOLATION"`일 때만 `true` (즉 사람이 없으면 아무리 미착용 class가 잡혀도 `false`)
 - `cloud_uploaded`: Supabase에 실제로 업로드되었는지 여부. `false`인 경우 `reason`(`"no_violation"` 또는 `"cooldown"`) 또는 `cloud_error` 필드를 함께 확인한다.
 
 ### Health check

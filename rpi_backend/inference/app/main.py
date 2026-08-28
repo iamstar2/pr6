@@ -116,12 +116,15 @@ async def infer(
     event_id = str(uuid.uuid4())
     response: dict = {
         "event_id": event_id,
+        "ppe_status": result["ppe_status"],
         "violation": result["violation"],
         "violation_types": result["violation_types"],
         "detections": result["detections"],
     }
 
     if not result["violation"]:
+        # ppe_status는 COMPLIANT(착용) 또는 NO_PERSON(이상없음) 둘 중 하나이며,
+        # 두 경우 모두 Supabase에는 전달하지 않는다.
         response["cloud_uploaded"] = False
         response["reason"] = "no_violation"
         return response

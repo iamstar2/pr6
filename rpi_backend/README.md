@@ -193,6 +193,7 @@ curl.exe -X POST "http://<RASPBERRY_PI_IP>:8000/api/v1/frame" `
 {
   "status": "ok",
   "device_id": "test-device",
+  "ppe_status": "VIOLATION",
   "violation": true,
   "violation_types": ["NO_HARDHAT"],
   "detections": [...],
@@ -200,6 +201,9 @@ curl.exe -X POST "http://<RASPBERRY_PI_IP>:8000/api/v1/frame" `
   "cloud_uploaded": true
 }
 ```
+
+`ppe_status`는 `COMPLIANT`(착용) / `VIOLATION`(미착용, Supabase 전달 대상) / `NO_PERSON`(이상없음, 사람 미감지) 세 가지 중 하나다.
+사람이 감지되지 않으면 미착용 class가 잡혀도 `NO_PERSON`으로 처리되어 Supabase에 올라가지 않는다 (자세한 판정 기준은 `INTEGRATION.md` 참고).
 
 ---
 
@@ -244,6 +248,7 @@ rpi_backend/
 | 증상 | 원인 / 해결 |
 |---|---|
 | inference 서비스가 500 에러 반환 | `best.onnx`가 `inference/model/`에 없음 → STEP 2 재실행 |
-| 미착용인데 violation=false | STEP 3에서 확인한 class 이름과 `.env`의 `NO_HELMET_CLASSES`/`NO_VEST_CLASSES`가 불일치 |
+| 미착용인데 ppe_status=NO_PERSON | `.env`의 `PERSON_CLASSES`가 모델의 실제 사람 class 이름과 불일치 (사람이 감지돼야만 미착용 판정을 함) |
+| 미착용인데 violation=false (ppe_status=COMPLIANT) | STEP 3에서 확인한 class 이름과 `.env`의 `NO_HELMET_CLASSES`/`NO_VEST_CLASSES`가 불일치 |
 | cloud_uploaded=false, reason=cooldown | 정상 동작 (같은 device+violation 조합이 `EVENT_COOLDOWN_SEC` 이내에 반복됨) |
 | Supabase 업로드 실패 | `.env`의 `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` 확인, STEP 5/6 완료 여부 확인 |

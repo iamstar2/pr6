@@ -22,6 +22,7 @@ services:
       IOU_THRESHOLD: ${IOU_THRESHOLD:-0.45}
       NO_HELMET_CLASSES: ${NO_HELMET_CLASSES:-NO-Hardhat,no_helmet,without_helmet}
       NO_VEST_CLASSES: ${NO_VEST_CLASSES:-NO-Safety Vest,no_vest,without_vest}
+      PERSON_CLASSES: ${PERSON_CLASSES:-Person,person}
       EVENT_COOLDOWN_SEC: ${EVENT_COOLDOWN_SEC:-5}
       CLOUD_URL: ${CLOUD_URL:-http://cloud:8002}
       MODEL_NAME: ${MODEL_NAME:-PPE-YOLO}

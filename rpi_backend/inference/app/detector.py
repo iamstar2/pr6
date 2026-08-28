@@ -1,8 +1,10 @@
 """
 PPE(안전모/안전조끼) 미착용 판정 핵심 로직.
 
-YOLO ONNX 모델을 이용해 detection을 수행하고,
-환경변수로 지정된 미착용 class 이름과 비교하여 violation 여부를 결정한다.
+YOLO 모델의 detection 결과로부터 사람(Person)이 감지되었는지를 먼저 확인하고,
+- 사람이 감지되지 않으면: "이상없음" (판정 자체를 하지 않음 — 방치된 안전모/조끼 물체로 오판정 방지)
+- 사람이 감지됐고 안전모/안전조끼를 모두 착용: "착용"
+- 사람이 감지됐지만 하나라도 미착용: "미착용" (이 경우만 Supabase로 전달됨)
 """
 import logging
 import time
@@ -20,10 +22,27 @@ logger = logging.getLogger("inference")
 VIOLATION_NO_HARDHAT = "NO_HARDHAT"
 VIOLATION_NO_SAFETY_VEST = "NO_SAFETY_VEST"
 
+# PPE 판정 3단계 상태값 (violation bool과 별개로, 사람 미감지 상황을 구분하기 위해 존재)
+STATUS_COMPLIANT = "COMPLIANT"  # 착용: 사람 감지 + 안전모/조끼 모두 착용
+STATUS_VIOLATION = "VIOLATION"  # 미착용: 사람 감지 + 하나 이상 미착용 -> Supabase 전달 대상
+STATUS_NO_PERSON = "NO_PERSON"  # 이상없음: 사람 자체가 감지되지 않음
+
 
 def _normalize(name: str) -> str:
     """class 이름 비교를 위해 소문자 + trim 처리한다."""
     return name.strip().lower()
+
+
+def determine_status(has_person: bool, violation_types: set[str]) -> str:
+    """
+    사람 감지 여부와 미착용 class 집합만으로 3단계 상태를 결정하는 순수 함수.
+    ONNX 모델 없이도 판정 로직만 독립적으로 테스트할 수 있도록 분리했다.
+    """
+    if not has_person:
+        return STATUS_NO_PERSON
+    if violation_types:
+        return STATUS_VIOLATION
+    return STATUS_COMPLIANT
 
 
 class PPEDetector:
@@ -31,7 +50,9 @@ class PPEDetector:
         self.model = YoloOnnxModel(settings.MODEL_PATH)
         self._no_helmet_names = {_normalize(n) for n in settings.NO_HELMET_CLASSES}
         self._no_vest_names = {_normalize(n) for n in settings.NO_VEST_CLASSES}
+        self._person_names = {_normalize(n) for n in settings.PERSON_CLASSES}
         self._warn_if_no_explicit_violation_classes()
+        self._warn_if_no_person_class()
 
     def _warn_if_no_explicit_violation_classes(self) -> None:
         """
@@ -47,6 +68,16 @@ class PPEDetector:
                 "추가 PPE-person association 로직 또는 미착용 class 학습 모델이 필요합니다."
             )
 
+    def _warn_if_no_person_class(self) -> None:
+        """PERSON_CLASSES가 모델의 실제 class와 하나도 매칭되지 않으면 항상 '이상없음'으로만 판정된다."""
+        model_names = {_normalize(n) for n in self.model.class_names.values()}
+        if not (model_names & self._person_names):
+            logger.warning(
+                "현재 모델에는 PERSON_CLASSES(%s)와 일치하는 class가 없어 "
+                "사람 감지를 전제로 하는 미착용 판정이 항상 '이상없음'으로만 나올 수 있습니다.",
+                sorted(self._person_names),
+            )
+
     def _classify(self, class_name: str) -> Optional[str]:
         normalized = _normalize(class_name)
         if normalized in self._no_helmet_names:
@@ -54,6 +85,9 @@ class PPEDetector:
         if normalized in self._no_vest_names:
             return VIOLATION_NO_SAFETY_VEST
         return None
+
+    def _is_person(self, class_name: str) -> bool:
+        return _normalize(class_name) in self._person_names
 
     def detect(self, image_bytes: bytes) -> dict:
         image = decode_image(image_bytes)
@@ -78,10 +112,13 @@ class PPEDetector:
 
         detections: list[dict] = []
         violation_types: set[str] = set()
+        has_person = False
 
         for det in raw_detections:
             class_name = self.model.class_names.get(det.class_id, f"class_{det.class_id}")
             violation_type = self._classify(class_name)
+            if self._is_person(class_name):
+                has_person = True
             detections.append(
                 {
                     "class_name": class_name,
@@ -98,15 +135,22 @@ class PPEDetector:
             if violation_type:
                 violation_types.add(violation_type)
 
-        violation = len(violation_types) > 0
-        if violation:
-            logger.info("Violation: %s", ", ".join(sorted(violation_types)))
+        status = determine_status(has_person, violation_types)
+        violation = status == STATUS_VIOLATION
+
+        if status == STATUS_VIOLATION:
+            logger.info("미착용(VIOLATION): %s", ", ".join(sorted(violation_types)))
+        elif status == STATUS_COMPLIANT:
+            logger.info("착용(COMPLIANT): 사람 감지됨, 안전모/안전조끼 모두 착용")
+        else:
+            logger.info("이상없음(NO_PERSON): 사람이 감지되지 않음")
 
         annotated_image: Optional[bytes] = None
         if violation:
             annotated_image = self._draw_violation_boxes(image, detections)
 
         return {
+            "ppe_status": status,
             "violation": violation,
             "violation_types": sorted(violation_types),
             "detections": detections,

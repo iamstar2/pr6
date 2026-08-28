@@ -31,6 +31,10 @@ class Settings:
         os.getenv("NO_VEST_CLASSES", "NO-Safety Vest,no_vest,without_vest")
     )
 
+    # 사람으로 인식할 class 이름 후보. violation은 사람이 감지된 경우에만 판정한다
+    # (사람 없이 방치된 안전모/조끼 물체만으로는 미착용 판정을 하지 않기 위함).
+    PERSON_CLASSES: list[str] = _split_env_list(os.getenv("PERSON_CLASSES", "Person,person"))
+
     # violation 발생 시에만 호출되는 cloud 서비스 내부 주소
     CLOUD_URL: str = os.getenv("CLOUD_URL", "http://cloud:8002")
     CLOUD_TIMEOUT_SEC: float = float(os.getenv("CLOUD_TIMEOUT_SEC", "10"))

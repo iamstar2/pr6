@@ -66,11 +66,31 @@ def test_violation_classification():
     detector = object.__new__(detector_module.PPEDetector)
     detector._no_helmet_names = {"no-hardhat"}
     detector._no_vest_names = {"no-safety vest"}
+    detector._person_names = {"person"}
 
     assert detector._classify("NO-Hardhat") == detector_module.VIOLATION_NO_HARDHAT
     assert detector._classify("NO-Safety Vest") == detector_module.VIOLATION_NO_SAFETY_VEST
     assert detector._classify("Hardhat") is None
     assert detector._classify("Person") is None
+    assert detector._is_person("Person") is True
+    assert detector._is_person("Hardhat") is False
+
+
+def test_determine_status_requires_person_for_violation():
+    """
+    사람(person)이 감지되지 않으면 미착용 class가 잡혀도 'NO_PERSON'(이상없음)이어야 하고,
+    Supabase 업로드 대상인 'VIOLATION'은 사람이 감지된 경우에만 나와야 한다.
+    """
+    determine_status = _load_inference_detector().determine_status
+
+    # 사람 없이 방치된 안전모 물체만 미착용 class로 잡힌 경우 -> 이상없음 (오탐 방지)
+    assert determine_status(has_person=False, violation_types={"NO_HARDHAT"}) == "NO_PERSON"
+    # 사람도 없고 미착용도 없는 경우 -> 이상없음
+    assert determine_status(has_person=False, violation_types=set()) == "NO_PERSON"
+    # 사람 감지 + 미착용 -> 미착용(Supabase 전달 대상)
+    assert determine_status(has_person=True, violation_types={"NO_HARDHAT"}) == "VIOLATION"
+    # 사람 감지 + 미착용 없음 -> 착용
+    assert determine_status(has_person=True, violation_types=set()) == "COMPLIANT"
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +99,7 @@ def test_violation_classification():
 class _FakeDetector:
     def detect(self, image_bytes: bytes) -> dict:
         return {
+            "ppe_status": "NO_PERSON",
             "violation": False,
             "violation_types": [],
             "detections": [],
@@ -113,6 +134,7 @@ def test_no_violation_skips_cloud_upload(inference_client, monkeypatch):
 
     assert response.status_code == 200
     body = response.json()
+    assert body["ppe_status"] == "NO_PERSON"
     assert body["violation"] is False
     assert body["cloud_uploaded"] is False
     assert body["reason"] == "no_violation"
