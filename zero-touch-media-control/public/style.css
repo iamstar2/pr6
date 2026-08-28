@@ -1,0 +1,77 @@
+/* 단순한 레이아웃 및 상태 배지 색상 */
+
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 700px;
+  margin: 24px auto;
+  padding: 0 16px;
+  color: #222;
+}
+
+h1 {
+  font-size: 20px;
+}
+
+#status-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.badge.waiting { background: #999; }
+.badge.connected { background: #2e7d32; }
+.badge.disconnected { background: #c62828; }
+.badge.detected { background: #1565c0; }
+.badge.not-detected { background: #999; }
+
+#search-box {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+#search-input {
+  flex: 1;
+  padding: 8px;
+  font-size: 14px;
+}
+
+#search-btn {
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+#results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.result-card {
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.result-card img {
+  width: 100%;
+  border-radius: 4px;
+}
+
+.result-card p {
+  margin: 4px 0 0;
+  line-height: 1.3;
+}
+
+#player-wrap {
+  display: flex;
+  justify-content: center;
+}
