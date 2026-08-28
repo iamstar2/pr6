@@ -13,7 +13,7 @@ import { formatRelativeKorean } from '../lib/time';
 const FALLBACK_WIDTH = 640;
 const FALLBACK_HEIGHT = 480;
 
-export default function LiveDetectionView({ frame }) {
+export default function LiveDetectionView({ frame, onImageClick }) {
   const [, forceTick] = useState(0);
 
   // Re-render periodically so the "n초 전" relative timestamp stays fresh.
@@ -32,20 +32,16 @@ export default function LiveDetectionView({ frame }) {
   const imgH = frame?.image_height || FALLBACK_HEIGHT;
 
   return (
-    <div className="glass-card p-6 flex flex-col gap-4">
+    <div className="glass-card p-6 flex flex-col gap-4 h-full">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-lg font-semibold text-on-surface">실시간 감지 화면</h2>
-        <span className="pill bg-surface-container-highest text-label-secondary">
-          사람 감지 시 캡처된 실제 이미지 (연속 영상 아님)
-        </span>
+        <h2 className="text-lg font-semibold text-on-surface">감지 화면</h2>
       </div>
 
       <div
-        className="relative w-full overflow-hidden rounded-lg border"
+        className="relative w-full flex-1 min-h-0 overflow-hidden rounded-lg border"
         style={{
           borderColor: 'var(--color-glass-border)',
           backgroundColor: 'var(--color-surface-container-lowest)',
-          aspectRatio: `${imgW} / ${imgH}`,
         }}
       >
         {hasImage && (
@@ -53,7 +49,8 @@ export default function LiveDetectionView({ frame }) {
           <img
             src={`data:image/jpeg;base64,${frame.image_base64}`}
             alt="최근 감지 캡처"
-            className="absolute inset-0 w-full h-full object-contain"
+            className="absolute inset-0 w-full h-full object-contain cursor-zoom-in"
+            onClick={() => onImageClick?.(`data:image/jpeg;base64,${frame.image_base64}`)}
           />
         )}
 

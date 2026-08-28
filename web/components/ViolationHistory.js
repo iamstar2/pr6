@@ -17,15 +17,16 @@ function StatusBadge({ status }) {
   );
 }
 
-function Thumbnail({ status, imageUrl }) {
+function Thumbnail({ status, imageUrl, onClick }) {
   if (status === 'success' && imageUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={imageUrl}
         alt="위반 캡처 썸네일"
-        className="w-16 h-16 rounded-md object-cover border"
+        className="w-16 h-16 rounded-md object-cover border cursor-zoom-in"
         style={{ borderColor: 'var(--color-glass-border)' }}
+        onClick={onClick}
         onError={(e) => {
           e.currentTarget.style.display = 'none';
         }}
@@ -47,32 +48,98 @@ function Thumbnail({ status, imageUrl }) {
   );
 }
 
-export default function ViolationHistory({ items }) {
+const TYPE_OPTIONS = [
+  { value: 'all', label: '전체 유형' },
+  { value: 'no_helmet', label: '헬멧만 미착용' },
+  { value: 'no_vest', label: '조끼만 미착용' },
+  { value: 'both', label: '둘 다 미착용' },
+];
+
+function violationType(item) {
+  if (!item.helmet_detected && !item.vest_detected) return 'both';
+  if (!item.helmet_detected) return 'no_helmet';
+  if (!item.vest_detected) return 'no_vest';
+  return null;
+}
+
+export default function ViolationHistory({ items, onImageClick }) {
   const [, forceTick] = useState(0);
+  const [deviceFilter, setDeviceFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
 
   useEffect(() => {
     const id = setInterval(() => forceTick((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
+  const devices = Array.from(new Set(items.map((i) => i.device_id).filter(Boolean)));
+
+  const filtered = items.filter((item) => {
+    if (deviceFilter !== 'all' && item.device_id !== deviceFilter) return false;
+    if (typeFilter !== 'all' && violationType(item) !== typeFilter) return false;
+    return true;
+  });
+
+  const selectClass =
+    'text-xs rounded-md border px-2 py-1 bg-surface-container-low text-on-surface';
+  const selectStyle = { borderColor: 'var(--color-glass-border)' };
+
   return (
-    <div className="glass-card p-6 flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+    <div className="glass-card p-6 flex flex-col gap-4 h-full">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-lg font-semibold text-on-surface">최근 위반 이력</h2>
-        <span className="text-xs text-label-secondary">{items.length}건</span>
+        <span className="text-xs text-label-secondary">
+          {filtered.length} / {items.length}건
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={deviceFilter}
+          onChange={(e) => setDeviceFilter(e.target.value)}
+          className={selectClass}
+          style={selectStyle}
+          aria-label="기기 필터"
+        >
+          <option value="all">전체 기기</option>
+          {devices.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value)}
+          className={selectClass}
+          style={selectStyle}
+          aria-label="위반 유형 필터"
+        >
+          {TYPE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {items.length === 0 ? (
-        <p className="text-sm text-label-secondary py-8 text-center">아직 위반 이력이 없습니다.</p>
+        <p className="text-sm text-label-secondary py-8 text-center flex-1">아직 위반 이력이 없습니다.</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-label-secondary py-8 text-center flex-1">조건에 맞는 이력이 없습니다.</p>
       ) : (
-        <ul className="flex flex-col gap-3 max-h-[560px] overflow-y-auto pr-1">
-          {items.map((item) => (
+        <ul className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto pr-1">
+          {filtered.map((item) => (
             <li
               key={item.request_id}
               className="flex items-center gap-4 p-3 rounded-lg border"
               style={{ borderColor: 'var(--color-glass-border)', backgroundColor: 'var(--color-surface-container-low)' }}
             >
-              <Thumbnail status={item.cloudStatus} imageUrl={item.image_url} />
+              <Thumbnail
+                status={item.cloudStatus}
+                imageUrl={item.image_url}
+                onClick={() => onImageClick?.(item.image_url)}
+              />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium text-on-surface truncate">{item.device_id || '알 수 없는 기기'}</span>

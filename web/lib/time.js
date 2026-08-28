@@ -1,3 +1,15 @@
+// True if the ISO timestamp falls on the same local calendar day as `now`.
+export function isSameLocalDay(isoString, now = new Date()) {
+  if (!isoString) return false;
+  const then = new Date(isoString);
+  if (Number.isNaN(then.getTime())) return false;
+  return (
+    then.getFullYear() === now.getFullYear() &&
+    then.getMonth() === now.getMonth() &&
+    then.getDate() === now.getDate()
+  );
+}
+
 // Formats a timestamp as a relative Korean "n초 전 / n분 전 / n시간 전" string.
 export function formatRelativeKorean(isoString, nowMs = Date.now()) {
   if (!isoString) return '-';

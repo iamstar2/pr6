@@ -3,9 +3,10 @@
 @tailwind utilities;
 
 /* Design tokens sourced from D:\Downloads\Iot\DESIGN.md ("Obsidian Glass").
-   Dark is the primary/default theme, defined on :root; the light set
-   overrides via [data-theme="light"]. An explicit [data-theme="dark"] block
-   is also provided so the toggle always wins regardless of system setting. */
+   :root holds the dark values as a pre-hydration fallback, but the app now
+   defaults to light (see app/layout.js's THEME_INIT_SCRIPT) — [data-theme="light"]
+   is what actually applies on first paint. An explicit [data-theme="dark"] block
+   is also provided so the toggle always wins regardless of stored preference. */
 :root {
   --color-surface: #131315;
   --color-surface-dim: #131315;

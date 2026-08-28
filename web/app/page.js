@@ -8,6 +8,8 @@ import SoundToggle from '../components/SoundToggle';
 import LiveDetectionView from '../components/LiveDetectionView';
 import ViolationToast from '../components/ViolationToast';
 import ViolationHistory from '../components/ViolationHistory';
+import ImageLightbox from '../components/ImageLightbox';
+import StatsSummary from '../components/StatsSummary';
 
 const MAX_HISTORY = 50;
 const SOUND_PREF_KEY = 'violationSoundEnabled';
@@ -18,6 +20,8 @@ export default function DashboardPage() {
   const [history, setHistory] = useState([]);
   const [toast, setToast] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [totalDetections, setTotalDetections] = useState(0);
   const toastCounter = useRef(0);
   const soundEnabledRef = useRef(true);
 
@@ -57,6 +61,7 @@ export default function DashboardPage() {
 
     const onLiveFrame = (payload) => {
       setLiveFrame(payload);
+      setTotalDetections((n) => n + 1);
     };
 
     const onViolation = (payload) => {
@@ -117,7 +122,7 @@ export default function DashboardPage() {
     <div className="min-h-screen">
       <header className="glass-header sticky top-0 z-40 px-6 py-4 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold text-on-surface">⚠️ IoT 안전 위반 모니터링</h1>
+          <h1 className="text-xl font-semibold text-on-surface">⚠️ 안전 위반 모니터링</h1>
           <span
             className="pill"
             style={{
@@ -136,16 +141,21 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="max-w-container mx-auto px-6 py-8 flex flex-col lg:flex-row gap-8 items-start">
-        <div className="w-full lg:flex-[3] lg:min-w-0">
-          <LiveDetectionView frame={liveFrame} />
+      <main className="max-w-container mx-auto px-6 py-8 flex flex-col gap-8">
+        <div className="flex flex-col lg:flex-row gap-8 items-stretch">
+          <div className="w-full lg:flex-1 lg:min-w-0 lg:h-[640px]">
+            <LiveDetectionView frame={liveFrame} onImageClick={setLightboxUrl} />
+          </div>
+          <div className="w-full lg:flex-1 lg:min-w-0 lg:h-[640px]">
+            <ViolationHistory items={history} onImageClick={setLightboxUrl} />
+          </div>
         </div>
-        <div className="w-full lg:flex-[2] lg:min-w-0">
-          <ViolationHistory items={history} />
-        </div>
+
+        <StatsSummary items={history} totalDetections={totalDetections} />
       </main>
 
       <ViolationToast toast={toast} onDismiss={dismissToast} />
+      <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   );
 }

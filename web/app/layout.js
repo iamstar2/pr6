@@ -7,21 +7,21 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-inter' });
 
 export const metadata = {
-  title: 'IoT 안전 위반 모니터링 대시보드',
+  title: '안전 위반 모니터링 대시보드',
   description: 'ESP32/RPi5 PPE 감지 파이프라인 실시간 모니터링 대시보드',
 };
 
-// Runs before paint (blocking, in <head>) to avoid a light-theme flash: reads
+// Runs before paint (blocking, in <head>) to avoid a dark-theme flash: reads
 // the persisted theme preference and stamps data-theme on <html> right away.
-// Defaults to "dark" (the primary designed theme) when nothing is stored yet.
+// Defaults to "light" when nothing is stored yet.
 const THEME_INIT_SCRIPT = `
 (function () {
   try {
     var stored = window.localStorage.getItem('theme');
-    var theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
+    var theme = stored === 'light' || stored === 'dark' ? stored : 'light';
     document.documentElement.setAttribute('data-theme', theme);
   } catch (e) {
-    document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.setAttribute('data-theme', 'light');
   }
 })();
 `;
