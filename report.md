@@ -140,10 +140,17 @@ Push/PR ──▶ GitHub Actions 트리거
 
 - 성능 개선 효과 실측(동시 요청 부하 테스트) — 이번엔 방법만 제안, 실측은 못함
 - `LOG_SHIP_URL` 훅에 실제 중앙 로그 수집 서버(Loki/ELK/CloudWatch) 연동 및 검증
-- `retry_queue`(`rpi5/data/`) 디스크 사용량 상한/보관 정책 추가
+- ~~`retry_queue`(`rpi5/data/`) 디스크 사용량 상한/보관 정책 추가~~ → 완료 (2026-08-31, 아래 참고)
 - `next@14.2.35`의 `npm audit` High severity CVE 다수 → 16.x 메이저 업그레이드(breaking change, 별도 작업 필요)
 - 다중 인물 프레임 개별 PPE 판정, 실제 RPi5 보드 성능 튜닝 (기존부터 있던 항목)
 - 웹 대시보드(Jest) 테스트 스위트는 이번 범위에서 다루지 않음 — pytest(RPi5)만 addendum 13번이 명시한 CI 게이트로 구성
+
+**2026-08-31 추가 조치 — retry_queue 보관 정책**: `RETRY_QUEUE_MAX_ENTRIES`(기본 200, 초과 시 가장 오래된
+항목부터 폐기·로그 기록)와 `RETRY_QUEUE_MAX_AGE_SECONDS`(기본 24h, 초과 시 재시도 중단하고 `_expired/`로
+격리)를 추가해 디스크 무한 증가 가능성을 없앴습니다(`rpi5/app/retry_queue.py`, `rpi5/app/config.py`).
+구현 중 `_entries()`가 실제 생성 시각이 아니라 디렉터리 이름(uuid) 순으로 정렬되고 있던 버그를 발견해
+`meta.json`의 `enqueued_at` 기준 정렬로 수정 — 안 고쳤으면 "가장 오래된 것부터 폐기"가 실제로는 무작위
+폐기와 다름없었을 뻔했습니다. pytest 2개(용량 초과 시 폐기 순서, 기간 초과 시 격리) 신규 추가.
 
 ### 3. README 개발 일지
 

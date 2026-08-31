@@ -148,8 +148,9 @@ CI에서도 자주 쓰지만 로컬 반복 수정 중에 특히 유용한 옵션
 - [ ] (선택) 부정확한 mask/안전콘 클래스도 활용해 위반 유형 세분화
 - [ ] 운영 배포 전 `DEVICE_API_KEY`/`WEB_INGRESS_TOKEN`/`web/ALLOWED_ORIGIN` 실제 값으로 설정
       (현재 기본값은 전부 "인증 없음/전체 허용" — 로컬 개발 전용)
-- [ ] `retry_queue`(`rpi5/data/`)에 디스크 사용량 상한이 없음 — 클라우드 장애가 길어지면
-      무한정 쌓임. 최대 보관 개수/기간 정책 추가 검토
+- [x] ~~`retry_queue`(`rpi5/data/`)에 디스크 사용량 상한이 없음~~ → `RETRY_QUEUE_MAX_ENTRIES`(기본 200,
+      초과 시 가장 오래된 것부터 폐기) + `RETRY_QUEUE_MAX_AGE_SECONDS`(기본 24h, 초과 시 `_expired/`로
+      격리 후 재시도 중단)로 해결 (2026-08-31)
 - [ ] `LOG_SHIP_URL`은 훅만 있고 실제 로그 수집 서버(Loki/ELK/CloudWatch 등) 연동은 미검증
 - [ ] `web/`의 `next@14.2.35`에 `npm audit`으로 발견된 High severity CVE 다수 — 16.x 메이저
       업그레이드 필요 (breaking change 있어 별도 작업으로 분리)
