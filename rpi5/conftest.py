@@ -8,6 +8,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 RPI5_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = RPI5_ROOT.parent
 
@@ -16,8 +18,6 @@ for _p in (RPI5_ROOT, REPO_ROOT):
         sys.path.insert(0, str(_p))
 
 os.environ.setdefault("RPI5_CONFIG_PATH", str(RPI5_ROOT / "config.yaml"))
-
-import pytest
 
 
 @pytest.fixture(autouse=True)
