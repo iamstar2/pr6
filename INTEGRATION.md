@@ -1,27 +1,33 @@
-# 연동 가이드 — ②RPi5/③클라우드를 새로 구현하는 팀원용
+# 연동 가이드 — ①ESP32 ↔ ②RPi5 ↔ ④웹 통합 계약
 
-이 저장소(GitHub)에는 **①ESP32-S3**와 **④웹 대시보드**만 올라갑니다. ②RPi5 판별 서버와
-③클라우드 저장은 팀원이 별도로 구현합니다 (로컬에 있던 참고 구현은 `.gitignore`로 제외됨,
-아래 계약만 지키면 그 구현을 몰라도 됩니다).
+> **2026-08-31 갱신**: 이전엔 "②RPi5/③클라우드를 팀원이 별도로 새로 구현한다"는 전제로 쓰인
+> 문서였지만, 지금은 팀 분리 없이 이 저장소(`rpi5/`, `cloud/` 포함) 하나로 통합되었습니다.
+> 아래 계약은 여전히 유효합니다 — 실제로 `rpi5/`, `web/`이 서로 주고받는 필드/헤더 그대로이므로,
+> 어느 한쪽만 수정할 때 다른 쪽을 깨뜨리지 않으려면 이 문서 기준으로 확인하세요.
 
-새로 구현할 RPi5 서버가 **① ESP32로부터 받는 입력**과 **④웹으로 보내야 하는 출력**, 이 두
-계약만 지키면 ESP32/웹 코드는 한 줄도 안 건드리고 바로 통합됩니다.
+**① ESP32가 RPi5로 보내는 입력**과 **② RPi5가 웹으로 보내야 하는 출력**, 이 두 계약만 지키면
+세 컴포넌트 중 하나만 수정해도 나머지는 코드 변경 없이 그대로 맞물립니다.
 
 ---
 
-## 1. ESP32 → RPi5 (당신의 서버가 구현해야 할 엔드포인트)
+## 1. ESP32 → RPi5 (RPi5가 구현하는 엔드포인트)
 
 ```
 POST {SERVER_BASE_URL}/api/v1/detect     (ESP32의 esp32/include/config.h에서 경로 확인)
 Content-Type: multipart/form-data
+X-API-Key: <DEVICE_API_KEY와 동일한 값>   (선택 — 아래 인증 참고)
 ```
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
-| `image` | file (JPEG) | 파일명 `capture.jpg`, `Content-Type: image/jpeg`. 고정 해상도 640x480(VGA) — `esp32/include/config.h`의 `CAPTURE_COLS`/`CAPTURE_ROWS`로 확인 가능 |
-| `device_id` | string | 카메라 노드 식별자 (예: `esp32-01`) |
+| `image` | file (JPEG) | 파일명 `capture.jpg`, `Content-Type: image/jpeg`. 고정 해상도 640x480(VGA) — `esp32/include/config.h`의 `CAPTURE_COLS`/`CAPTURE_ROWS`로 확인 가능. RPi5가 `MAX_UPLOAD_BYTES`(기본 5MB) 초과 시 413, `image/jpeg`가 아니면 400 |
+| `device_id` | string | 카메라 노드 식별자 (예: `esp32-01`). RPi5가 `^[A-Za-z0-9_-]{1,64}$`로 검증(파일 경로에 그대로 쓰이므로) — 벗어나면 400 |
 | `timestamp` | string | ISO8601 UTC (예: `2026-08-28T10:00:00Z`). NTP 동기화 전이면 placeholder일 수 있음 |
 | `confidence` | string(float) | ESP32 FOMO 모델의 "사람 감지" confidence (0~1) — RPi5의 PPE 판별 confidence와는 다른 값 |
+
+**인증**: RPi5의 `DEVICE_API_KEY`(`rpi5/.env`)가 설정되어 있으면, 위 `X-API-Key` 헤더가 없거나
+틀리면 401로 거부됩니다. `DEVICE_API_KEY`가 비어있으면(로컬 개발 기본값) 인증 없이 통과 —
+운영 배포 시에는 반드시 설정하세요 (ESP32 쪽은 `config.h`의 `API_SHARED_SECRET`에 같은 값 입력).
 
 **응답 (필수)**:
 ```json
@@ -41,10 +47,14 @@ Content-Type: multipart/form-data
 
 ---
 
-## 2. RPi5(당신의 서버) → 웹 대시보드 (당신이 호출해야 할 엔드포인트)
+## 2. RPi5 → 웹 대시보드 (RPi5가 호출하는 엔드포인트)
 
 웹 대시보드는 `PORT`(기본 `4000`)에서 아래 3개 HTTP 엔드포인트를 받고, 그대로 Socket.IO로
 브라우저에 재전송합니다. **필드명을 정확히 맞춰야** 화면에 제대로 표시됩니다.
+
+**인증**: 웹의 `INGRESS_TOKEN`(`web/.env`)이 설정되어 있으면 `X-Internal-Token` 헤더가
+일치해야 200이 옵니다(없으면 401). RPi5는 자신의 `WEB_INGRESS_TOKEN`(`rpi5/.env`)을 같은 값으로
+맞춰두면 자동으로 이 헤더를 붙여 보냅니다(`app/events.py`). 둘 다 비어있으면(기본값) 인증 없이 통과.
 
 ### 2-1. `POST /api/events/live-frame` — 매 판별마다 (위반 여부 무관)
 
@@ -66,7 +76,7 @@ Content-Type: multipart/form-data
 ```
 
 - **⚠️ 중요 — 프레임에 사람이 없으면 반드시 `violation: false`, `helmet_detected: true`,
-  `vest_detected: true`로 보내세요.** ESP32의 FOMO는 오탐지가 있을 수 있어서, 당신의 RPi5가
+  `vest_detected: true`로 보내세요.** ESP32의 FOMO는 오탐지가 있을 수 있어서, RPi5가
   실제로 사람을 못 찾았는데도 "헬멧/조끼 미검출"을 곧이곧대로 위반 처리하면 안 됩니다
   (이전에 이 가드가 없어서 빈 프레임이 전부 위반으로 오판되는 버그가 있었습니다 — 사람이
   실제로 검출됐을 때만 헬멧/조끼 판정을 하고, 아니면 무조건 `violation: false`로 두세요).
@@ -97,18 +107,21 @@ Content-Type: multipart/form-data
   붙습니다.
 
 ### 공통 사항
-- 세 엔드포인트 다 `Content-Type: application/json`, 아무 오리진이나 허용(CORS 이미 설정됨).
+- 세 엔드포인트 다 `Content-Type: application/json`. CORS는 `ALLOWED_ORIGIN`(`web/.env`,
+  기본값 `*`)으로 설정 — 브라우저가 아니라 RPi5(서버간 통신)가 호출하는 거라 대부분 영향 없음.
+- 필수 필드가 빠지거나 타입이 안 맞으면 400으로 거부됩니다 (`web/lib/validateEvent.js`) —
+  화면에 안 보인다고 무조건 화면 코드 문제는 아니니, 먼저 응답 상태코드를 확인하세요.
 - 요청 바디 최대 8MB까지 받습니다 (base64 이미지 포함이라 넉넉하게 잡혀있음).
 - 웹 서버 주소는 개발 환경에선 보통 `http://localhost:4000` — RPi5가 웹과 다른 PC에서 돌면
   "localhost"가 그 PC 자신을 가리키게 되니, 웹이 떠 있는 PC의 실제 LAN IP로 바꿔야 합니다.
 
 ---
 
-## 참고
+## 참고 — 실제 구현 위치
 
-- 이 계약대로 실제로 동작하는 참고 구현이 이 컴퓨터의 `rpi5/`, `cloud/` 폴더에 있습니다
-  (GitHub엔 안 올라가지만 로컬엔 남아있음) — 막히는 부분 있으면 그 코드를 참고하셔도 됩니다.
+- RPi5 쪽 계약 구현: `rpi5/app/routers/detect.py`(수신 · 인증 · 검증), `rpi5/app/security.py`
+  (인증/`device_id` 검증), `rpi5/app/events.py`(웹으로 전송).
 - ESP32가 실제로 보내는 필드/타이밍의 근거 코드: `esp32/src/main.cpp`의
   `uploadDetection()`/`uploadDetectionWithRetry()`.
-- 웹이 기대하는 payload의 근거 코드: `web/server.js`(수신), `web/app/page.js` +
-  `web/components/LiveDetectionView.js` / `ViolationHistory.js`(사용하는 필드).
+- 웹이 기대하는 payload의 근거 코드: `web/server.js`(수신 · 인증 · 검증), `web/lib/validateEvent.js`,
+  `web/app/page.js` + `web/components/LiveDetectionView.js` / `ViolationHistory.js`(사용하는 필드).
