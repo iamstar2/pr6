@@ -24,11 +24,13 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include "esp_camera.h"
+#include "esp_task_wdt.h"
 
 #include <Person_detection_FOMO_inferencing.h>
 #include "edge-impulse-sdk/dsp/image/image.hpp"
 
 #include "config.h"
+#include "log.h"
 
 // run_classifier() needs a bigger stack than the default loop task gets.
 SET_LOOP_TASK_STACK_SIZE(20 * 1024);
@@ -121,27 +123,26 @@ static void wifiConnect() {
     WiFi.setSleep(false);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-    Serial.printf("[WiFi] Connecting to %s", WIFI_SSID);
+    LOGI("[WiFi] Connecting to %s", WIFI_SSID);
     uint32_t start = millis();
     while (WiFi.status() != WL_CONNECTED) {
         delay(400);
-        Serial.print(".");
         if (millis() - start > 20000) {
-            Serial.println("\n[WiFi] Still not connected, retrying begin()...");
+            LOGI("[WiFi] Still not connected, retrying begin()...");
             WiFi.disconnect(true);
             delay(500);
             WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
             start = millis();
         }
     }
-    Serial.printf("\n[WiFi] Connected. IP=%s\n", WiFi.localIP().toString().c_str());
+    LOGI("[WiFi] Connected. IP=%s", WiFi.localIP().toString().c_str());
 }
 
 // ================= [4. Camera capture + FOMO inference] =================
 bool ei_camera_init(void) {
     esp_err_t err = esp_camera_init(&camera_config);
     if (err != ESP_OK) {
-        Serial.printf("[Camera] Init failed: 0x%x\n", err);
+        LOGE("[Camera] Init failed: 0x%x", err);
         return false;
     }
 
@@ -165,14 +166,14 @@ bool ei_camera_capture_for_inference() {
         memcpy(captured_jpeg_buf, fb->buf, fb->len);
         captured_jpeg_len = fb->len;
     } else {
-        Serial.printf("[Camera] Captured JPEG (%u bytes) exceeds buffer, can't keep it for upload\n", (unsigned)fb->len);
+        LOGE("[Camera] Captured JPEG (%u bytes) exceeds buffer, can't keep it for upload", (unsigned)fb->len);
         captured_jpeg_len = 0;
     }
 
     bool converted = fmt2rgb888(fb->buf, fb->len, PIXFORMAT_JPEG, preview_rgb_buf);
     esp_camera_fb_return(fb);
     if (!converted) {
-        Serial.println("[Camera] fmt2rgb888 conversion failed");
+        LOGE("[Camera] fmt2rgb888 conversion failed");
         return false;
     }
 
@@ -228,7 +229,7 @@ static bool uploadDetection(const uint8_t *jpeg_buf, size_t jpeg_len, float conf
     size_t total_len = head.length() + jpeg_len + tail.length();
     uint8_t *body = (uint8_t *)ps_malloc(total_len);
     if (!body) {
-        Serial.println("[HTTP] Failed to allocate multipart body buffer");
+        LOGE("[HTTP] Failed to allocate multipart body buffer");
         return false;
     }
 
@@ -242,13 +243,16 @@ static bool uploadDetection(const uint8_t *jpeg_buf, size_t jpeg_len, float conf
     http.begin(url);
     http.setTimeout(HTTP_TIMEOUT_MS);
     http.addHeader("Content-Type", String("multipart/form-data; boundary=") + BOUNDARY);
+    if (strlen(API_SHARED_SECRET) > 0) {
+        http.addHeader("X-API-Key", API_SHARED_SECRET);
+    }
 
     int status = http.POST(body, total_len);
     bool ok = (status >= 200 && status < 300);
     if (ok) {
         out_response = http.getString();
     } else {
-        Serial.printf("[HTTP] POST failed, status=%d\n", status);
+        LOGE("[HTTP] POST failed, status=%d", status);
     }
 
     http.end();
@@ -261,7 +265,7 @@ static bool uploadDetectionWithRetry(const uint8_t *jpeg_buf, size_t jpeg_len, f
     uint32_t backoff = HTTP_BACKOFF_BASE_MS;
     for (int attempt = 1; attempt <= HTTP_MAX_RETRIES; attempt++) {
         String response;
-        Serial.printf("[HTTP] Upload attempt %d/%d (%u bytes)\n", attempt, HTTP_MAX_RETRIES, (unsigned)jpeg_len);
+        LOGI("[HTTP] Upload attempt %d/%d (%u bytes)", attempt, HTTP_MAX_RETRIES, (unsigned)jpeg_len);
 
         if (uploadDetection(jpeg_buf, jpeg_len, confidence, timestamp, response)) {
             String requestId = "?";
@@ -269,17 +273,17 @@ static bool uploadDetectionWithRetry(const uint8_t *jpeg_buf, size_t jpeg_len, f
             if (!deserializeJson(doc, response)) {
                 requestId = doc["request_id"] | "?";
             }
-            Serial.printf("[HTTP] Upload OK, request_id=%s\n", requestId.c_str());
+            LOGI("[HTTP] Upload OK, request_id=%s", requestId.c_str());
             return true;
         }
 
         if (attempt < HTTP_MAX_RETRIES) {
-            Serial.printf("[HTTP] Retrying in %u ms...\n", backoff);
+            LOGI("[HTTP] Retrying in %u ms...", backoff);
             delay(backoff);
             backoff *= 2;
         }
     }
-    Serial.println("[HTTP] All upload attempts failed, giving up on this detection");
+    LOGE("[HTTP] All upload attempts failed, giving up on this detection");
     return false;
 }
 
@@ -301,43 +305,64 @@ static String isoTimestampNow() {
 }
 
 // ================= [6. setup / loop] =================
+// A fatal setup() failure used to hang forever blinking an LED, needing someone to
+// physically power-cycle the board to recover. That's fine on a bench, not for a
+// deployed camera node — log a few diagnostic blinks, then let the watchdog-free
+// restart path below actually recover on its own (transient PSRAM/camera glitches
+// at boot are the expected cause, not a reason to stay down indefinitely).
+static void fatalRestart(int blink_count) {
+    ledBlink(blink_count, 100, 200);
+    delay(1000);
+    esp_restart();
+}
+
 void setup() {
     Serial.begin(115200);
     delay(1500);
-    Serial.println("\n=== ESP32-S3 person-detection node starting ===");
+    LOGI("=== ESP32-S3 person-detection node starting ===");
 
     ledInit();
+
+    // Registers the loop task with the Task Watchdog Timer — see WATCHDOG_TIMEOUT_S
+    // in config.h for why this value. esp_task_wdt_reset() in loop() below is what
+    // feeds it; if loop() ever stops returning (a hang in run_classifier()/HTTP
+    // beyond its own timeout/etc.), the watchdog panics and reboots instead of the
+    // node silently going dark until someone notices.
+    esp_task_wdt_init(WATCHDOG_TIMEOUT_S, true);
+    esp_task_wdt_add(NULL);
 
     size_t rgb_buf_size = CAPTURE_COLS * CAPTURE_ROWS * PREVIEW_BYTES_PER_PIXEL;
     preview_rgb_buf = (uint8_t *)ps_malloc(rgb_buf_size);
     if (!preview_rgb_buf) preview_rgb_buf = (uint8_t *)malloc(rgb_buf_size);
     if (!preview_rgb_buf) {
-        Serial.println("[FATAL] Could not allocate preview RGB buffer");
-        while (true) { ledBlink(1, 100, 100); }
+        LOGE("[FATAL] Could not allocate preview RGB buffer, restarting");
+        fatalRestart(1);
     }
 
     captured_jpeg_buf = (uint8_t *)ps_malloc(CAPTURED_JPEG_BUF_SIZE);
     if (!captured_jpeg_buf) {
-        Serial.println("[FATAL] Could not allocate captured-JPEG buffer");
-        while (true) { ledBlink(1, 100, 100); }
+        LOGE("[FATAL] Could not allocate captured-JPEG buffer, restarting");
+        fatalRestart(1);
     }
 
     camera_ready = ei_camera_init();
     if (!camera_ready) {
-        Serial.println("[FATAL] Camera init failed");
-        while (true) { ledBlink(2, 100, 300); }
+        LOGE("[FATAL] Camera init failed, restarting");
+        fatalRestart(2);
     }
 
     wifiConnect();
     configTime(0, 0, "pool.ntp.org", "time.nist.gov"); // UTC, for ISO8601 timestamps
 
-    Serial.println("Camera + Wi-Fi ready. Starting detection loop...");
+    LOGI("Camera + Wi-Fi ready. Starting detection loop...");
     ledBlink(3, 80, 80);
 }
 
 void loop() {
+    esp_task_wdt_reset();
+
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("[WiFi] Lost connection, reconnecting...");
+        LOGI("[WiFi] Lost connection, reconnecting...");
         ledBlink(1, 50, 950); // slow single blink = degraded/reconnecting
         WiFi.reconnect();
         delay(1000);
@@ -353,7 +378,7 @@ void loop() {
     last_infer_ms = millis();
 
     if (!ei_camera_capture_for_inference()) {
-        Serial.println("[ERR] Preview capture failed");
+        LOGE("[ERR] Preview capture failed");
         return;
     }
 
@@ -364,7 +389,7 @@ void loop() {
     ei_impulse_result_t result = {0};
     EI_IMPULSE_ERROR err = run_classifier(&signal, &result, false /* debug */);
     if (err != EI_IMPULSE_OK) {
-        Serial.printf("[ERR] Classifier returned %d\n", err);
+        LOGE("[ERR] Classifier returned %d", err);
         return;
     }
 
@@ -383,12 +408,12 @@ void loop() {
     // own 0.5 floor is the actual blocker and it needs re-exporting from Edge
     // Impulse Studio with a lower object detection threshold, not a config.h change.
     if (result.bounding_boxes_count == 0) {
-        Serial.println("[Debug] 0 boxes from SDK this cycle (nothing cleared the model's own >=0.5 floor)");
+        LOGD("0 boxes from SDK this cycle (nothing cleared the model's own >=0.5 floor)");
     }
     for (uint32_t i = 0; i < result.bounding_boxes_count; i++) {
         ei_impulse_result_bounding_box_t bb = result.bounding_boxes[i];
-        Serial.printf("[Debug] box: label=%s value=%.3f [x:%u,y:%u,w:%u,h:%u] (our threshold=%.2f)\n",
-                      bb.label, bb.value, bb.x, bb.y, bb.width, bb.height, DETECTION_THRESHOLD);
+        LOGD("box: label=%s value=%.3f [x:%u,y:%u,w:%u,h:%u] (our threshold=%.2f)",
+             bb.label, bb.value, bb.x, bb.y, bb.width, bb.height, DETECTION_THRESHOLD);
         if (bb.value >= DETECTION_THRESHOLD && bb.value > best_confidence) {
             person_detected = true;
             best_confidence = bb.value;
@@ -398,12 +423,12 @@ void loop() {
 
     if (!person_detected) return;
 
-    Serial.printf("[Detect] Person detected, confidence=%.2f\n", best_confidence);
+    LOGI("[Detect] Person detected, confidence=%.2f", best_confidence);
     ledSet(true); // solid on = person currently in frame
 
     bool cooldown_active = (millis() - last_capture_ms) < CAPTURE_COOLDOWN_MS;
     if (cooldown_active) {
-        Serial.println("[Detect] Within cooldown window, skipping upload");
+        LOGD("[Detect] Within cooldown window, skipping upload");
         ledSet(false);
         return;
     }
@@ -412,7 +437,7 @@ void loop() {
         // This cycle's frame was too large for captured_jpeg_buf (see the
         // [Camera] warning above) — nothing to upload. Not a cooldown-worthy
         // event; try again next cycle.
-        Serial.println("[ERR] No captured JPEG available to upload this cycle");
+        LOGE("[ERR] No captured JPEG available to upload this cycle");
         ledBlink(4, 60, 60); // fast blink = capture error
         ledSet(false);
         return;

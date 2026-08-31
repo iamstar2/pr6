@@ -17,12 +17,16 @@ function StatusBadge({ status }) {
   );
 }
 
-function Thumbnail({ status, imageUrl, onClick }) {
-  if (status === 'success' && imageUrl) {
+function Thumbnail({ previewSrc, onClick }) {
+  // `previewSrc` is the cloud image_url once saved, or falls back to the
+  // base64 capture rpi5 already sent at violation time (item.image_base64) —
+  // so the thumbnail (and click-to-enlarge) works even while cloud upload is
+  // still pending/failed, not only after "저장 완료".
+  if (previewSrc) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={imageUrl}
+        src={previewSrc}
         alt="위반 캡처 썸네일"
         className="w-16 h-16 rounded-md object-cover border cursor-zoom-in"
         style={{ borderColor: 'var(--color-glass-border)' }}
@@ -43,7 +47,7 @@ function Thumbnail({ status, imageUrl, onClick }) {
       }}
       aria-label="썸네일 없음"
     >
-      {status === 'failed' ? '⚠️' : '⏳'}
+      ⏳
     </div>
   );
 }
@@ -136,9 +140,18 @@ export default function ViolationHistory({ items, onImageClick }) {
               style={{ borderColor: 'var(--color-glass-border)', backgroundColor: 'var(--color-surface-container-low)' }}
             >
               <Thumbnail
-                status={item.cloudStatus}
-                imageUrl={item.image_url}
-                onClick={() => onImageClick?.(item.image_url)}
+                previewSrc={
+                  item.image_url ||
+                  (item.image_base64 ? `data:image/jpeg;base64,${item.image_base64}` : '')
+                }
+                onClick={() =>
+                  onImageClick?.({
+                    url: item.image_url || `data:image/jpeg;base64,${item.image_base64}`,
+                    detections: item.detections,
+                    width: item.image_width,
+                    height: item.image_height,
+                  })
+                }
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">

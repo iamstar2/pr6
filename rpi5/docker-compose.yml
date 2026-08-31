@@ -1,0 +1,26 @@
+# Run from repo root: docker compose -f rpi5/docker-compose.yml up --build
+# Requires rpi5/.env to exist first: cp rpi5/.env.example rpi5/.env (then edit it).
+services:
+  rpi5-detector:
+    build:
+      context: ..
+      dockerfile: rpi5/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env   # everything that differs per person/deployment — see .env.example
+    environment:
+      # Container-internal paths — not meant to be edited per-user, so kept out of .env.
+      RPI5_CONFIG_PATH: /app/config.yaml
+      CLOUD_MOCK_STORAGE_DIR: /app/cloud/_mock_storage
+    # NOTE: inside this container, "localhost" means the container itself, not your
+    # machine. If .env's WEB_BACKEND_URL is left as http://localhost:4000, the web
+    # dashboard notifications will silently fail. Change it in .env to
+    # http://host.docker.internal:4000 (works via the extra_hosts entry below on
+    # Docker Desktop / Linux with a recent Docker Engine), or to the web backend's
+    # real IP if that doesn't resolve.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./models:/app/models:ro
+      - ../cloud/_mock_storage:/app/cloud/_mock_storage

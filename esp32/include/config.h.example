@@ -14,6 +14,11 @@
 // Unique identifier for this camera node — sent as `device_id` on every request.
 #define DEVICE_ID              "esp32-01"
 
+// Sent as the X-API-Key header on every upload — must match the RPi5 server's
+// DEVICE_API_KEY (rpi5/.env). Leave blank ("") only while DEVICE_API_KEY is also
+// unset on the server (local dev on a trusted LAN — see rpi5/app/security.py).
+#define API_SHARED_SECRET      ""
+
 // ---------- Timing ----------
 // How often to run person-detection inference on the low-res preview frame.
 #define CAPTURE_INTERVAL_MS    500
@@ -25,9 +30,11 @@
 // nothing. Watch the "[Debug] box: ..." serial log while pointing the camera at
 // a person to see real confidence values before tuning this.
 #define DETECTION_THRESHOLD    0.5f
-// After a violation-capture upload, wait at least this long before capturing again
-// (debounces repeated uploads for the same person standing in frame).
-#define CAPTURE_COOLDOWN_MS    5000
+// After a violation-capture upload, wait at least this long before capturing again.
+// Kept short here since the RPi5 side is expected to do its own smarter
+// same-person dedup (e.g. bbox-overlap based) — this just needs to avoid
+// hammering the network every single inference cycle, not do the deduping itself.
+#define CAPTURE_COOLDOWN_MS    2000
 
 // ---------- HTTP retry / backoff ----------
 #define HTTP_MAX_RETRIES       3
@@ -52,3 +59,17 @@
 // XIAO ESP32S3 Sense on-board user LED, active LOW. Set to -1 to disable.
 #define STATUS_LED_PIN         21
 #define STATUS_LED_ACTIVE_LOW  true
+
+// ---------- Logging ----------
+// 0=ERROR only, 1=+INFO (recommended for field deployment), 2=+DEBUG (per-detection
+// bounding-box dump — verbose, dev/tuning only). See include/log.h.
+#define LOG_LEVEL              1
+
+// ---------- Watchdog ----------
+// Task watchdog timeout. Must comfortably exceed the worst-case time a single
+// loop() iteration can legitimately take — the slowest path is 3 upload retries
+// back to back: sum of HTTP_TIMEOUT_MS + backoff across HTTP_MAX_RETRIES attempts
+// (with the defaults above: (8000+500)+(8000+1000)+(8000+2000) ≈ 27.5s). If any
+// of those defaults change, re-check this still has headroom above the new worst
+// case, or a normal slow-but-successful upload will trip the watchdog.
+#define WATCHDOG_TIMEOUT_S     40

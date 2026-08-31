@@ -20,7 +20,7 @@ export default function DashboardPage() {
   const [history, setHistory] = useState([]);
   const [toast, setToast] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [lightboxData, setLightboxData] = useState(null);
   const [totalDetections, setTotalDetections] = useState(0);
   const toastCounter = useRef(0);
   const soundEnabledRef = useRef(true);
@@ -144,10 +144,10 @@ export default function DashboardPage() {
       <main className="max-w-container mx-auto px-6 py-8 flex flex-col gap-8">
         <div className="flex flex-col lg:flex-row gap-8 items-stretch">
           <div className="w-full lg:flex-1 lg:min-w-0 lg:h-[640px]">
-            <LiveDetectionView frame={liveFrame} onImageClick={setLightboxUrl} />
+            <LiveDetectionView frame={liveFrame} onImageClick={setLightboxData} />
           </div>
           <div className="w-full lg:flex-1 lg:min-w-0 lg:h-[640px]">
-            <ViolationHistory items={history} onImageClick={setLightboxUrl} />
+            <ViolationHistory items={history} onImageClick={setLightboxData} />
           </div>
         </div>
 
@@ -155,7 +155,7 @@ export default function DashboardPage() {
       </main>
 
       <ViolationToast toast={toast} onDismiss={dismissToast} />
-      <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
+      <ImageLightbox data={lightboxData} onClose={() => setLightboxData(null)} />
     </div>
   );
 }

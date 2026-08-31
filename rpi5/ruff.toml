@@ -1,0 +1,8 @@
+line-length = 110
+
+[lint.flake8-bugbear]
+# FastAPI's dependency-injection pattern (`param: X = Depends(...)`, `File(...)`,
+# `Form(...)`, `Header(...)`) relies on these being evaluated once at declaration
+# time by design — B008 otherwise flags every route signature in routers/detect.py
+# and app/security.py as a false positive.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form", "fastapi.Header"]

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { formatRelativeKorean } from '../lib/time';
+import DetectionOverlaySvg from './DetectionOverlaySvg';
 
 // rpi5 relays the exact JPEG it just ran inference on (base64, in `image_base64`),
 // plus the real `image_width`/`image_height` it decoded that image at — so the SVG
@@ -25,11 +26,10 @@ export default function LiveDetectionView({ frame, onImageClick }) {
   const hasFrame = Boolean(frame);
   const hasImage = Boolean(frame?.image_base64);
   const violation = Boolean(frame?.violation);
-  const borderColor = violation ? 'var(--color-error)' : 'var(--color-success)';
 
-  const [x, y, w, h] = Array.isArray(frame?.bbox) ? frame.bbox : [0, 0, 0, 0];
   const imgW = frame?.image_width || FALLBACK_WIDTH;
   const imgH = frame?.image_height || FALLBACK_HEIGHT;
+  const dataUri = hasImage ? `data:image/jpeg;base64,${frame.image_base64}` : null;
 
   return (
     <div className="glass-card p-6 flex flex-col gap-4 h-full">
@@ -47,31 +47,16 @@ export default function LiveDetectionView({ frame, onImageClick }) {
         {hasImage && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`data:image/jpeg;base64,${frame.image_base64}`}
+            src={dataUri}
             alt="최근 감지 캡처"
             className="absolute inset-0 w-full h-full object-contain cursor-zoom-in"
-            onClick={() => onImageClick?.(`data:image/jpeg;base64,${frame.image_base64}`)}
+            onClick={() =>
+              onImageClick?.({ url: dataUri, detections: frame.detections, width: imgW, height: imgH })
+            }
           />
         )}
 
-        <svg
-          viewBox={`0 0 ${imgW} ${imgH}`}
-          className="absolute inset-0 w-full h-full"
-          preserveAspectRatio="xMidYMid meet"
-        >
-          {hasFrame && (
-            <rect
-              x={x}
-              y={y}
-              width={w}
-              height={h}
-              fill="none"
-              stroke={borderColor}
-              strokeWidth="4"
-              rx="6"
-            />
-          )}
-        </svg>
+        <DetectionOverlaySvg detections={frame?.detections} width={imgW} height={imgH} />
 
         {!hasFrame && (
           <div className="absolute inset-0 flex items-center justify-center text-label-secondary text-sm">

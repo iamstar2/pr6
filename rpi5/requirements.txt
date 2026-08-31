@@ -1,0 +1,15 @@
+# Serving-time dependencies only. Deliberately excludes torch/ultralytics — those are
+# only needed once, offline, by scripts/export_model.py. Keeping the serving image to
+# onnxruntime + opencv-headless + numpy is what makes this easy to move to an ARM64
+# Raspberry Pi 5 later (all of these publish aarch64 wheels).
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.4
+pyyaml==6.0.2
+httpx==0.28.1
+numpy==2.2.1
+opencv-python-headless==4.10.0.84
+onnxruntime==1.20.1
+python-dotenv==1.0.1
+supabase==2.31.0   # only used when CLOUD_PROVIDER=supabase — see cloud/providers/supabase_provider.py

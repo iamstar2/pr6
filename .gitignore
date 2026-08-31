@@ -1,41 +1,50 @@
 # =====================================================================
-# This repo is shared on GitHub for the ①ESP32 and ④web modules ONLY.
-# ②rpi5/ and ③cloud/ are a local reference implementation the teammate
-# owning those modules is replacing with their own — excluded below so
-# they never get committed. See INTEGRATION.md for the contract their
-# replacement needs to satisfy (what ESP32 sends it, what it must send web/).
+# rpi5/ and cloud/ are now part of this repo (no longer a teammate's separate
+# implementation) — only their real secrets and runtime output stay excluded.
 #
-# Local-only dev tooling (assumes the excluded rpi5/ is present, so it's
-# useless to a fresh clone that only has esp32/+web/) is excluded too —
-# see SETUP.md for what a teammate actually needs after cloning.
+# Whether the local-only dev tooling below (run.bat/scripts/README.md/docs/
+# etc) should also become trackable is still an open decision — left as-is
+# for now pending that call.
+#
 # All patterns below are anchored to the repo root (leading "/") so they
 # never accidentally match a same-named path nested inside esp32/ or web/
 # (e.g. esp32/scripts/ must NOT be excluded by the root /scripts/ rule).
 # =====================================================================
-/rpi5/
-/cloud/
 /run.bat
 /test.bat
 /stop.bat
 /scripts/
 /HOW_TO_RUN.md
 /PORTING_CHECKLIST.md
-
-# Repo scope kept minimal: only esp32/, web/, and the two teammate-facing
-# setup docs (SETUP.md, INTEGRATION.md) go to GitHub. These are local-only.
 /README.md
 /DESIGN.md
 /claude_code_prompt.md
 /docs/
 
+# Real per-deployment secrets for the RPi5/cloud service (Supabase service-role
+# key, etc). Copy from rpi5/.env.example instead of editing this one in place.
+/rpi5/.env
+
+# Local mock cloud-storage output: real captured violation photos + records
+# written by CLOUD_PROVIDER=local_mock. Runtime data, not source — and these
+# are photos of real people, so they must never be committed.
+/rpi5/cloud/_mock_storage/
+
+# Retry queue for violations that failed to reach cloud storage (app/retry_queue.py)
+# — also holds real violation photos until they're successfully retried.
+/rpi5/data/
+
+# Rotating log files (app/logging_config.py) — runtime output, not source.
+/rpi5/logs/
+
 # Edge Impulse SDK (~24MB, vendored from a zip export) — too big for the repo.
-# Teammates re-install it after cloning: see SETUP.md / esp32/scripts/install_ei_model.py.
+# Re-install after cloning: see SETUP.md / esp32/scripts/install_ei_model.py.
 esp32/lib/
 # The downloaded EI export zip itself (dropped at repo root to run the install
 # script against) — also shouldn't be committed, same reason.
 /*.zip
 
-# Python (kept in case rpi5/cloud exclusion above is ever lifted)
+# Python
 __pycache__/
 *.pyc
 .venv/
