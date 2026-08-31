@@ -56,6 +56,15 @@ class AppConfig(BaseModel):
     # in the background instead of being lost. Holds real photos — gitignored.
     retry_queue_dir: str = "./data/retry_queue"
     retry_interval_seconds: float = 30.0
+    # Hard cap on queued entries — without one, a prolonged cloud outage fills the
+    # disk. Oldest entry is evicted (logged, not silent) to make room for a new
+    # one. Rough disk ceiling = retry_queue_max_entries * a VGA JPEG (~150-300KB),
+    # so 200 * 300KB ≈ 60MB at the default.
+    retry_queue_max_entries: int = 200
+    # An entry older than this is given up on (moved to <retry_queue_dir>/_expired/
+    # instead of retried forever) and logged as ERROR — a cloud outage this long
+    # needs a human, not an infinite retry loop. Default 24h.
+    retry_queue_max_age_seconds: float = 24 * 60 * 60
     web_event_max_retries: int = 3
     web_event_backoff_base_seconds: float = 0.5
 
@@ -87,6 +96,8 @@ def _env_overrides() -> dict:
         "web_ingress_token": os.getenv("WEB_INGRESS_TOKEN", ""),
         "retry_queue_dir": os.getenv("RETRY_QUEUE_DIR", "./data/retry_queue"),
         "retry_interval_seconds": float(os.getenv("RETRY_INTERVAL_SECONDS", "30")),
+        "retry_queue_max_entries": int(os.getenv("RETRY_QUEUE_MAX_ENTRIES", "200")),
+        "retry_queue_max_age_seconds": float(os.getenv("RETRY_QUEUE_MAX_AGE_SECONDS", str(24 * 60 * 60))),
         "web_event_max_retries": int(os.getenv("WEB_EVENT_MAX_RETRIES", "3")),
         "web_event_backoff_base_seconds": float(os.getenv("WEB_EVENT_BACKOFF_BASE_S", "0.5")),
         "env": os.getenv("ENV", "development"),
