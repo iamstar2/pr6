@@ -7,7 +7,6 @@ shape) runs through the real app.
 """
 from __future__ import annotations
 
-import time
 from unittest.mock import AsyncMock
 
 import cv2
@@ -15,8 +14,9 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from app import config
+from app import config, events
 from app.main import app
+from app.routers import detect as detect_module
 from app.schemas import PPEResult
 
 
@@ -93,18 +93,36 @@ def test_detect_success_returns_request_id(client, monkeypatch):
     assert body["request_id"]
 
 
-def test_detect_violation_saves_and_reports_success(client, monkeypatch, tmp_path):
+def test_detect_violation_returns_ok_immediately(client, monkeypatch):
+    """The HTTP response must not wait on the cloud-upload background task — that's
+    the whole point of firing it via asyncio.create_task (see routers/detect.py).
+    Whether that task actually persists the image is verified separately below,
+    by awaiting it directly instead of racing it through a sync TestClient call
+    (polling for a background task's side effect here was flaky in CI: the
+    fire-and-forget task doesn't get scheduled on any predictable timeline
+    relative to a sync test thread's wall-clock polling).
+    """
     monkeypatch.setattr("app.routers.detect.infer_ppe", lambda img: _fake_result(True))
     resp = _post_detect(client)
     assert resp.status_code == 200
+    assert resp.json()["request_id"]
 
-    request_id = resp.json()["request_id"]
-    saved_image = tmp_path / "mock_storage" / "images" / "esp32-01" / f"{request_id}.jpg"
 
-    # Cloud upload runs in a fire-and-forget background task (asyncio.create_task in
-    # routers/detect.py) so the ESP32 response above doesn't wait on it — poll briefly
-    # instead of asserting immediately.
-    deadline = time.monotonic() + 2.0
-    while time.monotonic() < deadline and not saved_image.exists():
-        time.sleep(0.05)
+async def test_handle_violation_persists_image_and_record(monkeypatch, tmp_path):
+    """Directly awaits _handle_violation() (the coroutine detect() fires off in the
+    background) so the assertion isn't racing a fire-and-forget task's scheduling.
+    """
+    monkeypatch.setenv("CLOUD_MOCK_STORAGE_DIR", str(tmp_path / "mock_storage"))
+    config.get_config.cache_clear()
+    monkeypatch.setattr(events, "emit_violation", AsyncMock())
+    monkeypatch.setattr(events, "emit_cloud_status", AsyncMock())
+
+    result = _fake_result(True).model_copy(update={
+        "request_id": "req-handle-1", "device_id": "esp32-01", "timestamp": "2026-01-01T00:00:00Z",
+    })
+
+    await detect_module._handle_violation(result, b"jpeg-bytes", {"request_id": "req-handle-1"})
+
+    saved_image = tmp_path / "mock_storage" / "images" / "esp32-01" / "req-handle-1.jpg"
     assert saved_image.exists()
+    assert saved_image.read_bytes() == b"jpeg-bytes"
